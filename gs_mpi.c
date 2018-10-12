@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
     if (myrank == 0) {
       printf("Call this program with two parameters: matrix_size communication \n");
       printf("\t matrix_size: Add 2 to a power of 2 (e.g. : 18, 1026)\n");
-      printf("\t communication_io:\n");
+      printf("\t communication:\n");
       printf("\t\t 0: initial and final using point-to-point communication\n");
       printf("\t\t 1: initial and final using collective communication\n");
 

@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
   }
 
   n = atoi(argv[1]);
-  communication_io =  atoi(argv[2]);
+  communication =  atoi(argv[2]);
   printf("Matrix size = %d communication = %d\n", n, communication);
 
   allocate_init_2Dmatrix(&a, n, n);
