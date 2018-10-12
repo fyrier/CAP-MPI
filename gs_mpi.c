@@ -1,10 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "mpi.h"
+// faltaria incluir string.h para poder usar memcpy
 
 #define MAX_ITER 100
 #define MAX 100 //maximum value of the matrix element
 #define TOL 0.000001
+
+// Variables globales para tener en cuenta el tiempo
+// double s_time;
+// double e_time;
 
 // Generate a random float number with the maximum value of max
 float rand_float(int max){
@@ -28,17 +33,48 @@ void solver(float ***mat, int n, int m){
   float diff = 0, temp;
   int done = 0, cnt_iter = 0, i, j, myrank;
 
+  //
   while (!done && (cnt_iter < MAX_ITER)){
     diff = 0;
+
+    // Crear una copia de las filas de la matriz que se van a mandar
+    // Si queremos dividir la matriz en partes iguales para cada proceso
+    // *cmat = (float **) malloc( n/n_nodos * sizeof(float *) );
+    // despues tocaría copiar el trozo de matriz que toca en la copia
+    // numero de elementos que se van a pasar numero_filas * (columnas)m * sizeof(float)
+    // memcpy(&cmat, &mat[myrank], (n/n_nodos) * m * sizeof(float));
+
+    // Empezar a contar el tiempo
+    // s_time = MPI_Wtime();
+
+    // Aqui ya se podria usar una funcion para mandar la copia de la matriz y
+    // asi operar solo lo que le toque a cada uno
+
+    // He visto otra forma de hacer las cosas en la que en vez de hacer copias, el master le manda a los clientes dos mensajes
+    // uno con el upper bound de desde donde van a empezar a procesar y otro con el lower bound, igual es mas eficiente que tener
+    // que ir copiando trocitos de la matriz
+
+    // para esto primero se comprueba que el rango es mayor que 0 y con eso ya recibe los valores, cuando termina de operar los manda de vuelta y a correr
+
+    // hay que revisar estos bucles por si toca cambiar algo con respecto a la matriz copiada / hay que añadir algo tema proceso master / proceso clientes
     for (i = 1; i < n - 1; i++)
       for (j = 1; j < m - 1; j++) {
         temp = (*mat)[i][j];
         (*mat)[i][j] = 0.2 * ((*mat)[i][j] + (*mat)[i][j - 1] + (*mat)[i - 1][j] + (*mat)[i][j + 1] + (*mat)[i + 1][j]);
         diff += abs((*mat)[i][j] - temp);
       }
+
+    // se recibe aqui o despues de comprobar la diferencia?
+    // igual renta mas despues de haber terminado el numero total de iteraciones, porque asi se mandan menos mensajes aunque igual sea algo mas pesado con lo cual
+    // dependeria menos de la red, perderiamos menos tiempo en eso y seriamos mas rapidos
+    // usamos despues alguna barrera?
+
     if (diff/n/n < TOL)
       done = 1;
     cnt_iter ++;
+
+    // Contar el tiempo cuando termina
+    // e_time = MPI_Wtime();
   }
 
   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
