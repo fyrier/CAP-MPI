@@ -33,7 +33,9 @@ void solver(float ***mat, int n, int m){
   float diff = 0, temp;
   int done = 0, cnt_iter = 0, i, j, myrank;
 
-  //
+  // Empezar a contar el tiempo
+  // s_time = MPI_Wtime();
+
   while (!done && (cnt_iter < MAX_ITER)){
     diff = 0;
 
@@ -43,9 +45,6 @@ void solver(float ***mat, int n, int m){
     // despues tocaría copiar el trozo de matriz que toca en la copia
     // numero de elementos que se van a pasar numero_filas * (columnas)m * sizeof(float)
     // memcpy(&cmat, &mat[myrank], (n/n_nodos) * m * sizeof(float));
-
-    // Empezar a contar el tiempo
-    // s_time = MPI_Wtime();
 
     // Aqui ya se podria usar una funcion para mandar la copia de la matriz y
     // asi operar solo lo que le toque a cada uno
