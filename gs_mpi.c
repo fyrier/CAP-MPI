@@ -8,8 +8,9 @@
 #define TOL 0.000001
 
 // Variables globales para tener en cuenta el tiempo
-// double s_time;
-// double e_time;
+double s_time;
+double e_time;
+int numnodes;
 
 // Generate a random float number with the maximum value of max
 float rand_float(int max){
@@ -31,10 +32,10 @@ void allocate_init_2Dmatrix(float ***mat, int n, int m){
 // solver
 void solver(float ***mat, int n, int m){
   float diff = 0, temp;
-  int done = 0, cnt_iter = 0, i, j, myrank;
+  int done = 0, cnt_iter = 0, i, j, myrank, rows, strt;
 
   // Empezar a contar el tiempo
-  // s_time = MPI_Wtime();
+  s_time = MPI_Wtime();
 
   while (!done && (cnt_iter < MAX_ITER)){
     diff = 0;
@@ -55,13 +56,52 @@ void solver(float ***mat, int n, int m){
 
     // para esto primero se comprueba que el rango es mayor que 0 y con eso ya recibe los valores, cuando termina de operar los manda de vuelta y a correr
 
-    // hay que revisar estos bucles por si toca cambiar algo con respecto a la matriz copiada / hay que añadir algo tema proceso master / proceso clientes
-    for (i = 1; i < n - 1; i++)
+    // proceso master
+    if (myrank == 0) {
+      // dividir las filas equitativamente, sin contar primera y ultima
+      rows = (n - 2) / (numnodes - 1);
+
+      // Enviar datos a otros nodos
+      for (int otherrank = 1; otherrank < numnodes; otherrank++) {
+        // Cada proceso se tiene que llevar su fila, la anterior y la siguiente
+        /*
+            buf: principio del mensaje: la fila anterior a la que le toca calcular
+            count: elementos: rows
+            datatype: float
+            dest: destino: otherrank
+            tag: 1
+            comm: MPI_COMM_WORLD
+        */
+        // retocar el inicio, esta mal puesto (seria otherrank + lo que lleve de diferencia)
+        MPI_Send(&otherrank, &rows, MPI_INT, otherrank, 1, MPI_COMM_WORLD);
+      }
+    }
+
+    // Trabajo en los nodos
+    if (myrank > 0) {
+      // obtener el número de filas que le toca operar
+      /*
+        buf: principio del mensaje: la fila anterior a la que le toca calcular
+        count: elementos: rows
+        datatype: float
+        dest: destino: otherrank
+        tag: 1
+        comm: MPI_COMM_WORLD
+        status: error status
+      */
+      //MPI_Recv(&strt, &rows, MPI_INT, );
+      // Recibir los datos
+      // Realizar los cálculos que le toca a cada parte
+      // dos fors anidados que calculen los resultados para los datos que le toca computar
+    }
+
+    // Codigo orignial
+    /*for (i = 1; i < n - 1; i++)
       for (j = 1; j < m - 1; j++) {
         temp = (*mat)[i][j];
         (*mat)[i][j] = 0.2 * ((*mat)[i][j] + (*mat)[i][j - 1] + (*mat)[i - 1][j] + (*mat)[i][j + 1] + (*mat)[i + 1][j]);
         diff += abs((*mat)[i][j] - temp);
-      }
+      }*/
 
     // se recibe aqui o despues de comprobar la diferencia?
     // igual renta mas despues de haber terminado el numero total de iteraciones, porque asi se mandan menos mensajes aunque igual sea algo mas pesado con lo cual
@@ -72,9 +112,10 @@ void solver(float ***mat, int n, int m){
       done = 1;
     cnt_iter ++;
 
-    // Contar el tiempo cuando termina
-    // e_time = MPI_Wtime();
   }
+
+  // Contar el tiempo cuando termina
+  e_time = MPI_Wtime();
 
   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
   if (myrank == 0) {
@@ -89,6 +130,7 @@ int main(int argc, char *argv[]) {
   int np, myrank, n, communication;
   float **a;
 
+  numnodes = np;
 
   MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
