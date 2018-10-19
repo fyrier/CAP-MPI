@@ -63,7 +63,7 @@ void solver(float ***mat, int n, int m){
     if (myrank == 0) {
       // dividir las filas equitativamente, sin contar primera y ultima
       rows = (n - 2) / (numnodes - 1);
-      strt = 0;
+      strt = 1;
 
       // Enviar datos a otros nodos
       for (int otherrank = 1; otherrank < numnodes; otherrank++) {
@@ -95,12 +95,13 @@ void solver(float ***mat, int n, int m){
       for (int otherrank = 1; otherrank < numnodes; otherrank++) {
         // Guardar el resultado
         // Obtener donde comienzan los cambios operados
-        MPI_Recv(&start, 1, MPI_INT, src, 2, MPI_COMM_WORLD, &status);
+        MPI_Recv(&strt, 1, MPI_INT, src, 2, MPI_COMM_WORLD, &status);
         // Obtener el numero de filas afectadas por las operaciones
         MPI_Recv(&rows, 1, MPI_INT, src, 2, MPI_COMM_WORLD, &status);
         // Copiar el resultado en la matriz
-        MPI_Recv(&mat[start][0], rows * n, MPI_FLOAT, src, 2, MPI_COMM_WORLD, &status);
-        
+        MPI_Recv(&mat[strt][0], rows * n, MPI_FLOAT, src, 2, MPI_COMM_WORLD, &status);
+        // Obtener el resultado de diff tambien
+        MPI_RECV(&diff, 1, MPI_FLOAT, src, 2, MPI_COMM_WORLD, &status);
       }
     }
 
@@ -126,10 +127,24 @@ void solver(float ***mat, int n, int m){
       // Obtener las filas de la matriz que deben utilizarse para las operaciones
       MPI_Recv(&mat, (rows + 2) * m, MPI_FLOAT, 0, 1, MPI_COMM_WORLD, &status);
       
-      // Realizar los cálculos que le toca a cada parte
-      // dos fors anidados que calculen los resultados para los datos que le toca computar
+      // Se calculan los nuevos valores
+      for (i = strt; i <= rows; i++)
+        for (j = 1; j < m - 1; j++) {
+          temp = (*mat)[i][j];
+          (*mat)[i][j] = 0.2 * ((*mat)[i][j] + (*mat)[i][j - 1] + (*mat)[i - 1][j] + (*mat)[i][j + 1] + (*mat)[i + 1][j]);
+          diff += abs((*mat)[i][j] - temp);
+      }
+      
+      // Enviar los resultados al master
+      // Devolver el inicio de la matriz en el que se realizan los calculos
+      MPI_Send(&strt, 1, MPI_INT, myrank, 2, MPI_COMM_WORLD);
+      // Devolver el numero de filas que se han modificado
+      MPI_Send(&rows, 1, MPI_INT, myrank, 2, MPI_COMM_WORLD);
+      // Devolver la matriz con las filas modificadas
+      MPI_Send(&mat[strt][0], rows * m, MPI_FLOAT, myrank, 2, MPI_COMM_WORLD);
+      // Devolver el valor de la diferencia
+      MPI_Send(&diff, 1, MPI_FLOAT, myrank, 2, MPI_COMM_WORLD);
     }
-
     // Codigo orignial
     /*for (i = 1; i < n - 1; i++)
       for (j = 1; j < m - 1; j++) {
@@ -137,11 +152,6 @@ void solver(float ***mat, int n, int m){
         (*mat)[i][j] = 0.2 * ((*mat)[i][j] + (*mat)[i][j - 1] + (*mat)[i - 1][j] + (*mat)[i][j + 1] + (*mat)[i + 1][j]);
         diff += abs((*mat)[i][j] - temp);
       }*/
-
-    // se recibe aqui o despues de comprobar la diferencia?
-    // igual renta mas despues de haber terminado el numero total de iteraciones, porque asi se mandan menos mensajes aunque igual sea algo mas pesado con lo cual
-    // dependeria menos de la red, perderiamos menos tiempo en eso y seriamos mas rapidos
-    // usamos despues alguna barrera?
 
     if (diff/n/n < TOL)
       done = 1;
