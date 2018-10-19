@@ -60,20 +60,31 @@ void solver(float ***mat, int n, int m){
     if (myrank == 0) {
       // dividir las filas equitativamente, sin contar primera y ultima
       rows = (n - 2) / (numnodes - 1);
+      int strt = 0;
 
       // Enviar datos a otros nodos
       for (int otherrank = 1; otherrank < numnodes; otherrank++) {
         // Cada proceso se tiene que llevar su fila, la anterior y la siguiente
         /*
-            buf: principio del mensaje: la fila anterior a la que le toca calcular
-            count: elementos: rows
-            datatype: float
+            buf: principio del mensaje: 
+                 donde tiene que empezar a calcular
+                 el numero de filas que tiene que calcular
+                 las filas de la matriz en las que va a operar
+            count: elementos
+            datatype: int y float
             dest: destino: otherrank
             tag: 1
             comm: MPI_COMM_WORLD
         */
-        // retocar el inicio, esta mal puesto (seria otherrank + lo que lleve de diferencia)
-        MPI_Send(&otherrank, &rows, MPI_INT, otherrank, 1, MPI_COMM_WORLD);
+        // En que punto de la matriz va a empezar a calcular cosas
+        MPI_Send(&strt, 1, MPI_INT, otherrank, 1, MPI_COMM_WORLD);
+        // Cuantas filas tiene que operar
+        MPI_Send(&rows, 1, MPI_INT, otherrank, 1, MPI_COMM_WORLD);
+        // Las filas de la matriz que va a utilizar para solapar cosas
+          // Se le manda desde la fila anterior porque necesita los datos de la fila anterior aunque no los vaya a modificar
+        MPI_Send(&mat[strt - 1][0], (rows + 1) * m, MPI_FLOAT, otherrank, 1, MPI_COMM_WORLD);
+        //Calcular donde va a empezar a calcular el siguiente nodo
+        strt = strt + rows;
       }
     }
 
