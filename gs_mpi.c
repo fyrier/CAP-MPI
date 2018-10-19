@@ -10,7 +10,10 @@
 // Variables globales para tener en cuenta el tiempo
 double s_time;
 double e_time;
+
+// Variables generales para operar las matrices
 int numnodes;
+MPI_Status status;
 
 // Generate a random float number with the maximum value of max
 float rand_float(int max){
@@ -32,7 +35,7 @@ void allocate_init_2Dmatrix(float ***mat, int n, int m){
 // solver
 void solver(float ***mat, int n, int m){
   float diff = 0, temp;
-  int done = 0, cnt_iter = 0, i, j, myrank, rows, strt;
+  int done = 0, cnt_iter = 0, i, j, myrank, rows, strt, src;
 
   // Empezar a contar el tiempo
   s_time = MPI_Wtime();
@@ -60,7 +63,7 @@ void solver(float ***mat, int n, int m){
     if (myrank == 0) {
       // dividir las filas equitativamente, sin contar primera y ultima
       rows = (n - 2) / (numnodes - 1);
-      int strt = 0;
+      strt = 0;
 
       // Enviar datos a otros nodos
       for (int otherrank = 1; otherrank < numnodes; otherrank++) {
@@ -81,10 +84,23 @@ void solver(float ***mat, int n, int m){
         // Cuantas filas tiene que operar
         MPI_Send(&rows, 1, MPI_INT, otherrank, 1, MPI_COMM_WORLD);
         // Las filas de la matriz que va a utilizar para solapar cosas
-          // Se le manda desde la fila anterior porque necesita los datos de la fila anterior aunque no los vaya a modificar
-        MPI_Send(&mat[strt - 1][0], (rows + 1) * m, MPI_FLOAT, otherrank, 1, MPI_COMM_WORLD);
+          // Se le manda desde la fila anterior y siguiente porque necesita los datos de la fila anterior aunque no los vaya a modificar
+        MPI_Send(&mat[strt - 1][0], (rows + 2) * m, MPI_FLOAT, otherrank, 1, MPI_COMM_WORLD);
         //Calcular donde va a empezar a calcular el siguiente nodo
         strt = strt + rows;
+      }
+      
+      // Recoger los resultados, estoy siguiento un ejemplo chachi que explica muy bien las coasas, pero aqui no se si 
+      // tambien cuadraria una barrera en vez de un send o alguna otra cosa, nu se :D
+      for (int otherrank = 1; otherrank < numnodes; otherrank++) {
+        // Guardar el resultado
+        // Obtener donde comienzan los cambios operados
+        MPI_Recv(&start, 1, MPI_INT, src, 2, MPI_COMM_WORLD, &status);
+        // Obtener el numero de filas afectadas por las operaciones
+        MPI_Recv(&rows, 1, MPI_INT, src, 2, MPI_COMM_WORLD, &status);
+        // Copiar el resultado en la matriz
+        MPI_Recv(&mat[start][0], rows * n, MPI_FLOAT, src, 2, MPI_COMM_WORLD, &status);
+        
       }
     }
 
@@ -92,7 +108,10 @@ void solver(float ***mat, int n, int m){
     if (myrank > 0) {
       // obtener el número de filas que le toca operar
       /*
-        buf: principio del mensaje: la fila anterior a la que le toca calcular
+        buf: principio del mensaje: 
+             Donde tiene que empezar a operar
+             Numero de filas que tiene que operar
+             Las filas de la matriz necesarias para operar
         count: elementos: rows
         datatype: float
         dest: destino: otherrank
@@ -100,8 +119,13 @@ void solver(float ***mat, int n, int m){
         comm: MPI_COMM_WORLD
         status: error status
       */
-      //MPI_Recv(&strt, &rows, MPI_INT, );
-      // Recibir los datos
+      // Obtener en que punto de la matriz empezar a operar
+      MPI_Recv(&strt, 1, MPI_INT, 0, 1, MPI_COMM_WORLD, &status);
+      // Obtener el numero de filas de la matriz que hay que operar
+      MPI_Recv(&rows, 1, MPI_INT, 0, 1, MPI_COMM_WORLD, &status);
+      // Obtener las filas de la matriz que deben utilizarse para las operaciones
+      MPI_Recv(&mat, (rows + 2) * m, MPI_FLOAT, 0, 1, MPI_COMM_WORLD, &status);
+      
       // Realizar los cálculos que le toca a cada parte
       // dos fors anidados que calculen los resultados para los datos que le toca computar
     }
