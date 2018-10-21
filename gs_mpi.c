@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include "mpi.h"
 
 #define MAX_ITER 100
@@ -13,7 +14,38 @@
 
 // Generate a random float number with the maximum value of max
 float rand_float(int max) {
-	return ((float)rand()/(float)(RAND_MAX)) * max;
+	return ((float)rand() / (float)(RAND_MAX)) * max;
+}
+
+
+
+
+// Calculates how many rows are going to be send to each node
+int rows_per_node(int num_nodes, int n) {
+	return ((int)floor(n/nodes) + 2);
+}
+
+
+
+
+// Gets the index from which each node should get rows (SUPPOSITION: STARTS WITH NODE 0)
+int get_lower_index(int node_id, int rows_per_node) {
+	return = node_id * (rows_per_node-2);
+}
+
+
+
+
+// Gets the index until which each node should get rows (SUPPOSITION: STARTS WITH NODE 0)
+int get_upper_index(int node_id, int rows_per_node, int n) {
+
+	int index = (node_id+1) * (rows_per_node-2) + 1;
+	if (index >= n) {
+		return n-1;
+	}
+	else {
+		return index;
+	}
 }
 
 
@@ -91,8 +123,8 @@ int main(int argc, char *argv[]) {
 			printf("\t communication:\n");
 			printf("\t\t 0: initial and final using point-to-point communication\n");
 			printf("\t\t 1: initial and final using collective communication\n");
+		}
 
-	 }
 		MPI_Finalize();
 		exit(1);
 	}
@@ -100,6 +132,10 @@ int main(int argc, char *argv[]) {
 	n = atoi(argv[1]);
 	communication =	atoi(argv[2]);
 	printf("Matrix size = %d communication = %d\n", n, communication);
+
+
+	// Calculate how many rows are going to be sent to each node
+	int num_rows = rows_per_node(np, n);
 
 
 	switch(communication) {
