@@ -28,7 +28,9 @@ int rows_per_node(int num_nodes, int n) {
 
 
 
-// Gets the index from which each node should get rows (SUPPOSITION: STARTS WITH NODE 0)
+// Gets the index from which each node should get rows
+// SUPPOSITION 1: STARTS WITH NODE 0
+// SUPPOSITION 2: THE RETURNED INDEX IS INCLUDED
 int get_lower_index(int node_id, int rows_per_node) {
 	return = node_id * (rows_per_node-2);
 }
@@ -36,7 +38,9 @@ int get_lower_index(int node_id, int rows_per_node) {
 
 
 
-// Gets the index until which each node should get rows (SUPPOSITION: STARTS WITH NODE 0)
+// Gets the index until which each node should get rows
+// SUPPOSITION 1: STARTS WITH NODE 0
+// SUPPOSITION 2: THE RETURNED INDEX IS INCLUDED
 int get_upper_index(int node_id, int rows_per_node, int n) {
 
 	int index = (node_id+1) * (rows_per_node-2) + 1;
@@ -141,22 +145,60 @@ int main(int argc, char *argv[]) {
 	switch(communication) {
 		case 0: {
 			if (myrank == 0) {
+
+				// Allocating memory for the whole matrix
 				allocate_init_2Dmatrix(&a, n, n);
+				int i;
+
+				// Master sends chuncks to every other node
+				for (i = 1; i < np; i++) {
+					int lower_index = get_lower_index(i, num_rows);
+					int upper_index = get_upper_index(i, num_rows, n);
+					int num_elems = (upper_index-lower_index+1) * n;
+
+					MPI_Send(&a[lower_index], num_elems, MPI_FLOAT, i, MPI_ANY_TAG, MPI_COMM_WORLD);
+				}
 			}
-			// p2p communication for scattering the matrix
+			else {
+
+				// Allocating the exact memory to the rows receiving
+				allocate_init_2Dmatrix(&a, num_rows, n);
+				int status;
+
+				int lower_index = get_lower_index(myrank, num_rows);
+				int upper_index = get_upper_index(myrank, num_rows, n);
+				int num_elems = (upper_index-lower_index+1) * n;
+
+				// Receiving the data from the master node
+				MPI_Recv(&a, num_elems, MPI_FLOAT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+			}
 			break;
 		}
+
+		/*
 		case 1: {
 			if (myrank == 0) {
 				allocate_init_2Dmatrix(&a, n, n);
 			}
+			else {
+				allocate_init_2Dmatrix(&a, num_rows, n);
+			}
+
 			// collective communication for scattering the matrix
 			break;
 		}
+		*/
 	}
 
-	// parallelize the solver inside
-	solver(&a, n, n);
+
+	// --------- SOLVER ---------
+	if (myrank == 0) {
+		//TODO (Aqui va a haber problemas por el código del solver)
+	}
+	else {
+		solver(&a, num_rows, n);
+	}
+
 
 	switch(communication) {
 		case 0: {
