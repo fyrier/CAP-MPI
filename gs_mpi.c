@@ -6,7 +6,7 @@
 #define MAX_ITER 100
 
 // Maximum value of the matrix element
-#define MAX 100 	
+#define MAX 100
 #define TOL 0.000001
 
 // Variables globales para tener en cuenta el tiempo
@@ -59,23 +59,6 @@ void solver(float ***mat, int n, int m) {
 	while (!done && (cnt_iter < MAX_ITER)) {
 		diff = 0;
 
-		// Crear una copia de las filas de la matriz que se van a mandar
-		// Si queremos dividir la matriz en partes iguales para cada proceso
-		// *cmat = (float **) malloc( n/n_nodos * sizeof(float *) );
-		// despues tocaría copiar el trozo de matriz que toca en la copia
-		// numero de elementos que se van a pasar numero_filas * (columnas)m * sizeof(float)
-		// memcpy(&cmat, &mat[myrank], (n/n_nodos) * m * sizeof(float));
-
-		// Aqui ya se podria usar una funcion para mandar la copia de la matriz y
-		// asi operar solo lo que le toque a cada uno
-
-		// He visto otra forma de hacer las cosas en la que en vez de hacer copias, el master le manda a los clientes dos mensajes
-		// uno con el upper bound de desde donde van a empezar a procesar y otro con el lower bound, igual es mas eficiente que tener
-		// que ir copiando trocitos de la matriz
-
-		// para esto primero se comprueba que el rango es mayor que 0 y con eso ya recibe los valores, cuando termina de operar los manda de vuelta y a correr
-
-
 		// PROCESO MASTER
 		if (myrank == 0) {
 
@@ -87,7 +70,7 @@ void solver(float ***mat, int n, int m) {
 			for (int otherrank = 1; otherrank < numnodes; otherrank++) {
 				// Cada proceso se tiene que llevar su fila, la anterior y la siguiente
 				/*
-						buf: principio del mensaje: 
+						buf: principio del mensaje:
 								 donde tiene que empezar a calcular
 								 el numero de filas que tiene que calcular
 								 las filas de la matriz en las que va a operar
@@ -108,8 +91,8 @@ void solver(float ***mat, int n, int m) {
 				//Calcular donde va a empezar a calcular el siguiente nodo
 				strt = strt + rows;
 			}
-			
-			// Recoger los resultados, estoy siguiento un ejemplo chachi que explica muy bien las coasas, pero aqui no se si 
+
+			// Recoger los resultados, estoy siguiento un ejemplo chachi que explica muy bien las coasas, pero aqui no se si
 			// tambien cuadraria una barrera en vez de un send o alguna otra cosa, nu se :D
 			for (int otherrank = 1; otherrank < numnodes; otherrank++) {
 				// Guardar el resultado
@@ -120,7 +103,7 @@ void solver(float ***mat, int n, int m) {
 				// Copiar el resultado en la matriz
 				MPI_Recv(&mat[strt][0], rows * n, MPI_FLOAT, src, 2, MPI_COMM_WORLD, &status);
 				// Obtener el resultado de diff tambien
-				MPI_RECV(&diff, 1, MPI_FLOAT, src, 2, MPI_COMM_WORLD, &status);
+				MPI_Recv(&diff, 1, MPI_FLOAT, src, 2, MPI_COMM_WORLD, &status);
 			}
 		}
 
@@ -129,7 +112,7 @@ void solver(float ***mat, int n, int m) {
 		if (myrank > 0) {
 			// obtener el número de filas que le toca operar
 			/*
-				buf: principio del mensaje: 
+				buf: principio del mensaje:
 						 Donde tiene que empezar a operar
 						 Numero de filas que tiene que operar
 						 Las filas de la matriz necesarias para operar
@@ -146,7 +129,7 @@ void solver(float ***mat, int n, int m) {
 			MPI_Recv(&rows, 1, MPI_INT, 0, 1, MPI_COMM_WORLD, &status);
 			// Obtener las filas de la matriz que deben utilizarse para las operaciones
 			MPI_Recv(&mat, (rows + 2) * m, MPI_FLOAT, 0, 1, MPI_COMM_WORLD, &status);
-			
+
 			// Se calculan los nuevos valores
 			for (i = strt; i <= rows; i++)
 				for (j = 1; j < m - 1; j++) {
@@ -154,7 +137,7 @@ void solver(float ***mat, int n, int m) {
 					(*mat)[i][j] = 0.2 * ((*mat)[i][j] + (*mat)[i][j - 1] + (*mat)[i - 1][j] + (*mat)[i][j + 1] + (*mat)[i + 1][j]);
 					diff += abs((*mat)[i][j] - temp);
 			}
-			
+
 			// Enviar los resultados al master
 			// Devolver el inicio de la matriz en el que se realizan los calculos
 			MPI_Send(&strt, 1, MPI_INT, myrank, 2, MPI_COMM_WORLD);
