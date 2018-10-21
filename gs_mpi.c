@@ -1,21 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "mpi.h"
-// Faltaria incluir string.h para poder usar memcpy
 
 #define MAX_ITER 100
 
 // Maximum value of the matrix element
 #define MAX 100
 #define TOL 0.000001
-
-// Variables globales para tener en cuenta el tiempo
-double s_time;
-double e_time;
-
-// Variables generales para operar las matrices
-int numnodes;
-MPI_Status status;
 
 
 
@@ -50,116 +41,25 @@ void allocate_init_2Dmatrix(float ***mat, int n, int m){
 void solver(float ***mat, int n, int m) {
 
 	float diff = 0, temp;
-	int done = 0, cnt_iter = 0, i, j, myrank, rows, strt, src;
+	int done = 0, cnt_iter = 0, i, j, myrank;
 
-	// Empezar a contar el tiempo
-	s_time = MPI_Wtime();
+  	while (!done && (cnt_iter < MAX_ITER)) {
+  		diff = 0;
 
-
-	while (!done && (cnt_iter < MAX_ITER)) {
-		diff = 0;
-
-		// PROCESO MASTER
-		if (myrank == 0) {
-
-			// dividir las filas equitativamente, sin contar primera y ultima
-			rows = (n - 2) / (numnodes - 1);
-			strt = 1;
-
-			// Enviar datos a otros nodos
-			for (int otherrank = 1; otherrank < numnodes; otherrank++) {
-				// Cada proceso se tiene que llevar su fila, la anterior y la siguiente
-				/*
-						buf: principio del mensaje:
-								 donde tiene que empezar a calcular
-								 el numero de filas que tiene que calcular
-								 las filas de la matriz en las que va a operar
-						count: elementos
-						datatype: int y float
-						dest: destino: otherrank
-						tag: 1
-						comm: MPI_COMM_WORLD
-				*/
-				// En que punto de la matriz va a empezar a calcular cosas
-				MPI_Send(&strt, 1, MPI_INT, otherrank, 1, MPI_COMM_WORLD);
-				// Cuantas filas tiene que operar
-				MPI_Send(&rows, 1, MPI_INT, otherrank, 1, MPI_COMM_WORLD);
-				// Las filas de la matriz que va a utilizar para solapar cosas
-				// Se le manda desde la fila anterior y siguiente porque necesita los datos de la fila anterior aunque no los vaya a modificar
-				MPI_Send(&mat[strt - 1][0], (rows + 2) * m, MPI_FLOAT, otherrank, 1, MPI_COMM_WORLD);
-
-				//Calcular donde va a empezar a calcular el siguiente nodo
-				strt = strt + rows;
-			}
-
-			// Recoger los resultados, estoy siguiento un ejemplo chachi que explica muy bien las coasas, pero aqui no se si
-			// tambien cuadraria una barrera en vez de un send o alguna otra cosa, nu se :D
-			for (int otherrank = 1; otherrank < numnodes; otherrank++) {
-				// Guardar el resultado
-				// Obtener donde comienzan los cambios operados
-				MPI_Recv(&strt, 1, MPI_INT, src, 2, MPI_COMM_WORLD, &status);
-				// Obtener el numero de filas afectadas por las operaciones
-				MPI_Recv(&rows, 1, MPI_INT, src, 2, MPI_COMM_WORLD, &status);
-				// Copiar el resultado en la matriz
-				MPI_Recv(&mat[strt][0], rows * n, MPI_FLOAT, src, 2, MPI_COMM_WORLD, &status);
-				// Obtener el resultado de diff tambien
-				MPI_Recv(&diff, 1, MPI_FLOAT, src, 2, MPI_COMM_WORLD, &status);
-			}
-		}
-
-
-		// NODES WORD
-		if (myrank > 0) {
-			// obtener el número de filas que le toca operar
-			/*
-				buf: principio del mensaje:
-						 Donde tiene que empezar a operar
-						 Numero de filas que tiene que operar
-						 Las filas de la matriz necesarias para operar
-				count: elementos: rows
-				datatype: float
-				dest: destino: otherrank
-				tag: 1
-				comm: MPI_COMM_WORLD
-				status: error status
-			*/
-			// Obtener en que punto de la matriz empezar a operar
-			MPI_Recv(&strt, 1, MPI_INT, 0, 1, MPI_COMM_WORLD, &status);
-			// Obtener el numero de filas de la matriz que hay que operar
-			MPI_Recv(&rows, 1, MPI_INT, 0, 1, MPI_COMM_WORLD, &status);
-			// Obtener las filas de la matriz que deben utilizarse para las operaciones
-			MPI_Recv(&mat, (rows + 2) * m, MPI_FLOAT, 0, 1, MPI_COMM_WORLD, &status);
-
-			// Se calculan los nuevos valores
-			for (i = strt; i <= rows; i++)
-				for (j = 1; j < m - 1; j++) {
-					temp = (*mat)[i][j];
-					(*mat)[i][j] = 0.2 * ((*mat)[i][j] + (*mat)[i][j - 1] + (*mat)[i - 1][j] + (*mat)[i][j + 1] + (*mat)[i + 1][j]);
-					diff += abs((*mat)[i][j] - temp);
-			}
-
-			// Enviar los resultados al master
-			// Devolver el inicio de la matriz en el que se realizan los calculos
-			MPI_Send(&strt, 1, MPI_INT, myrank, 2, MPI_COMM_WORLD);
-			// Devolver el numero de filas que se han modificado
-			MPI_Send(&rows, 1, MPI_INT, myrank, 2, MPI_COMM_WORLD);
-			// Devolver la matriz con las filas modificadas
-			MPI_Send(&mat[strt][0], rows * m, MPI_FLOAT, myrank, 2, MPI_COMM_WORLD);
-			// Devolver el valor de la diferencia
-			MPI_Send(&diff, 1, MPI_FLOAT, myrank, 2, MPI_COMM_WORLD);
-		}
-
+  		for (i = 1; i < n - 1; i++) {
+  			for (j = 1; j < m - 1; j++) {
+  				temp = (*mat)[i][j];
+				(*mat)[i][j] = 0.2 * ((*mat)[i][j] + (*mat)[i][j - 1] + (*mat)[i - 1][j] + (*mat)[i][j + 1] + (*mat)[i + 1][j]);
+				diff += abs((*mat)[i][j] - temp);
+  			}
+      	}
 
 		if (diff/n/n < TOL){
 			done = 1;
 		}
-
 		cnt_iter ++;
 	}
 
-
-	// Contar el tiempo cuando termina
-	e_time = MPI_Wtime();
 
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 	if (myrank == 0) {
@@ -176,10 +76,9 @@ void solver(float ***mat, int n, int m) {
 
 
 int main(int argc, char *argv[]) {
+
 	int np, myrank, n, communication;
 	float **a;
-
-	numnodes = np;
 
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
