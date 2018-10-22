@@ -20,9 +20,17 @@ float rand_float(int max) {
 
 
 
-// Calculates how many rows are going to be send to each node
-int rows_per_node(int num_nodes, int n) {
+// Calculates how many rows are given, as maximum, to each node
+int get_max_rows(int num_nodes, int n) {
 	return ((int)floor(n/nodes) + 2);
+}
+
+
+
+
+// Calculates how many rows are going to a given node
+int get_node_rows(int lower_bound, int upper_bound) {
+	return upper_bound - lower_bound + 1;
 }
 
 
@@ -31,8 +39,8 @@ int rows_per_node(int num_nodes, int n) {
 // Gets the index from which each node should get rows
 // SUPPOSITION 1: STARTS WITH NODE 0
 // SUPPOSITION 2: THE RETURNED INDEX IS INCLUDED
-int get_lower_index(int node_id, int rows_per_node) {
-	return = node_id * (rows_per_node-2);
+int get_lower_index(int node_id, int max_rows) {
+	return = node_id * (max_rows-2);
 }
 
 
@@ -41,9 +49,9 @@ int get_lower_index(int node_id, int rows_per_node) {
 // Gets the index until which each node should get rows
 // SUPPOSITION 1: STARTS WITH NODE 0
 // SUPPOSITION 2: THE RETURNED INDEX IS INCLUDED
-int get_upper_index(int node_id, int rows_per_node, int n) {
+int get_upper_index(int node_id, int max_rows, int n) {
 
-	int index = (node_id+1) * (rows_per_node-2) + 1;
+	int index = (node_id+1) * (max_rows-2) + 1;
 	if (index >= n) {
 		return n-1;
 	}
@@ -87,7 +95,7 @@ void allocate_nodes_2Dmatrix(float ***mat, int n, int m) {
 
 
 
-// Solver
+// Solves as many rows as specified at the argument "n"
 void solver(float ***mat, int n, int m) {
 
 	float diff = 0, temp;
@@ -112,13 +120,11 @@ void solver(float ***mat, int n, int m) {
 
 
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-	if (myrank == 0) {
-		if (done) {
-			printf("Solver converged after %d iterations\n", cnt_iter);
-		}
-		else {
-			printf("Solver not converged after %d iterations\n", cnt_iter);
-		}
+	if (done) {
+		printf("Node %d: Solver converged after %d iterations\n", myrank, cnt_iter);
+	}
+	else {
+		printf("Node %d: Solver not converged after %d iterations\n", myrank, cnt_iter);
 	}
 }
 
@@ -152,8 +158,12 @@ int main(int argc, char *argv[]) {
 	printf("Matrix size = %d communication = %d\n", n, communication);
 
 
-	// Calculate how many rows are going to be sent to each node
-	int num_rows = rows_per_node(np, n);
+	int max_rows = get_max_rows(np, n);
+	int lower_index = get_lower_index(myrank, max_rows);
+	int upper_index = get_upper_index(myrank, max_rows, n);
+
+	// Calculate the proper number rows for each node
+	int num_rows = get_node_rows(lower_index, upper_index);
 
 
 	switch(communication) {
@@ -166,22 +176,21 @@ int main(int argc, char *argv[]) {
 
 				// Master sends chuncks to every other node
 				for (i = 1; i < np; i++) {
-					int lower_index = get_lower_index(i, num_rows);
-					int upper_index = get_upper_index(i, num_rows, n);
-					int num_elems = (upper_index-lower_index+1) * n;
+					int i_lower_index = get_lower_index(i, max_rows);
+					int i_upper_index = get_upper_index(i, max_rows, n);
+					int i_num_rows = get_node_rows(i_lower_index, i_upper_index)
+					int i_num_elems = i_num_rows * n;
 
-					MPI_Send(&a[lower_index], num_elems, MPI_FLOAT, i, MPI_ANY_TAG, MPI_COMM_WORLD);
+					MPI_Send(&a[i_lower_index], i_num_elems, MPI_FLOAT, i, MPI_ANY_TAG, MPI_COMM_WORLD);
 				}
 			}
 			else {
 
 				// Allocating the exact memory to the rows receiving
 				allocate_nodes_2Dmatrix(&a, num_rows, n);
-				int status;
 
-				int lower_index = get_lower_index(myrank, num_rows);
-				int upper_index = get_upper_index(myrank, num_rows, n);
-				int num_elems = (upper_index-lower_index+1) * n;
+				int status;
+				int num_elems = num_rows * n;
 
 				// Receiving the data from the master node
 				MPI_Recv(&a, num_elems, MPI_FLOAT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
@@ -206,12 +215,7 @@ int main(int argc, char *argv[]) {
 
 
 	// --------- SOLVER ---------
-	if (myrank == 0) {
-		//TODO (Aqui va a haber problemas por el código del solver)
-	}
-	else {
-		solver(&a, num_rows, n);
-	}
+	solver(&a, num_rows, n);
 
 
 	switch(communication) {
