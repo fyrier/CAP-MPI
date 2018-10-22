@@ -36,6 +36,14 @@ int get_node_rows(int lower_bound, int upper_bound) {
 
 
 
+// Calculates how many elements are going to a given node
+int get_node_elems(int node_rows, int n) {
+	return node_rows * n;
+}
+
+
+
+
 // Gets the index from which each node should get rows
 // SUPPOSITION 1: STARTS WITH NODE 0
 // SUPPOSITION 2: THE RETURNED INDEX IS INCLUDED
@@ -162,8 +170,9 @@ int main(int argc, char *argv[]) {
 	int lower_index = get_lower_index(myrank, max_rows);
 	int upper_index = get_upper_index(myrank, max_rows, n);
 
-	// Calculate the proper number rows for each node
+	// Calculate the proper number of rows and elements for each node
 	int num_rows = get_node_rows(lower_index, upper_index);
+	int num_elems = get_node_elems(num_rows, n);
 
 
 	switch(communication) {
@@ -179,7 +188,7 @@ int main(int argc, char *argv[]) {
 					int i_lower_index = get_lower_index(i, max_rows);
 					int i_upper_index = get_upper_index(i, max_rows, n);
 					int i_num_rows = get_node_rows(i_lower_index, i_upper_index)
-					int i_num_elems = i_num_rows * n;
+					int i_num_elems = get_node_elems(i_num_rows, n);
 
 					MPI_Send(&a[i_lower_index], i_num_elems, MPI_FLOAT, i, MPI_ANY_TAG, MPI_COMM_WORLD);
 				}
@@ -188,9 +197,7 @@ int main(int argc, char *argv[]) {
 
 				// Allocating the exact memory to the rows receiving
 				allocate_nodes_2Dmatrix(&a, num_rows, n);
-
 				int status;
-				int num_elems = num_rows * n;
 
 				// Receiving the data from the master node
 				MPI_Recv(&a, num_elems, MPI_FLOAT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
@@ -220,13 +227,32 @@ int main(int argc, char *argv[]) {
 
 	switch(communication) {
 		case 0: {
-			// p2p communication for scattering the matrix
+			if (myrank == 0) {
+				int status;
+
+				// Master sends chuncks to every other node
+				for (i = 1; i < np; i++) {
+					int i_lower_index = get_lower_index(i, max_rows);
+					int i_upper_index = get_upper_index(i, max_rows, n);
+					int i_num_rows = get_node_rows(i_lower_index, i_upper_index)
+					int i_num_elems = get_node_elems(i_num_rows, n);
+
+					// Receiving the data from the slave nodes
+					MPI_Recv(&a[i_lower_index], i_num_elems, MPI_FLOAT, i, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+				}
+			}
+			else {
+				MPI_Send(&a, num_elems, MPI_FLOAT, 0, MPI_ANY_TAG, MPI_COMM_WORLD);
+			}
+
 			break;
 		}
+		/*
 		case 1: {
 			// collective communication for gathering the matrix
 			break;
 		}
+		*/
 	}
 
 	MPI_Finalize();
