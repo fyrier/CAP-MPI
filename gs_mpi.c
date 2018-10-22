@@ -232,8 +232,8 @@ int main(int argc, char *argv[]) {
 
 				// Master sends chuncks to every other node
 				for (i = 1; i < np; i++) {
-					int i_lower_index = get_lower_index(i, max_rows);
-					int i_upper_index = get_upper_index(i, max_rows, n);
+					int i_lower_index = get_lower_index(i, max_rows) + 1;		// +1 to skip cortex values
+					int i_upper_index = get_upper_index(i, max_rows, n) - 1;	// -1 to skip cortex values
 					int i_num_rows = get_node_rows(i_lower_index, i_upper_index);
 					int i_num_elems = get_node_elems(i_num_rows, n);
 
@@ -242,7 +242,13 @@ int main(int argc, char *argv[]) {
 				}
 			}
 			else {
-				MPI_Send(&a, num_elems, MPI_FLOAT, 0, MPI_ANY_TAG, MPI_COMM_WORLD);
+				int solved_lower_index = 1;						// Start at 1 to skip cortex values
+				int solved_upper_index = num_rows-2;			// Reach num_rows-2 to skip cortex values
+				int solved_rows = get_node_rows(solved_lower_index, solved_upper_index);
+				int solved_elems = get_node_elems(solved_rows, n);
+
+				// Compute num_elems sin la corteza
+				MPI_Send(&a[solved_lower_index], solved_elems, MPI_FLOAT, 0, MPI_ANY_TAG, MPI_COMM_WORLD);
 			}
 
 			break;
