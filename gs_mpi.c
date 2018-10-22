@@ -55,7 +55,7 @@ int get_upper_index(int node_id, int rows_per_node, int n) {
 
 
 
-// Allocate 2D matrix
+// Allocate 2D matrix in the master node
 void allocate_init_2Dmatrix(float ***mat, int n, int m){
 
 	int i, j;
@@ -67,6 +67,20 @@ void allocate_init_2Dmatrix(float ***mat, int n, int m){
 		for (j = 0; j < m; j++) {
 			(*mat)[i][j] = rand_float(MAX);
 		}
+	}
+}
+
+
+
+
+// Allocate 2D matrix in the slaves nodes
+void allocate_nodes_2Dmatrix(float ***mat, int n, int m) {
+
+	int i;
+	*mat = (float **) malloc(n * sizeof(float *));
+
+	for (i = 0; i < n; i++) {
+		(*mat)[i] = (float *)malloc(m * sizeof(float));
 	}
 }
 
@@ -162,7 +176,7 @@ int main(int argc, char *argv[]) {
 			else {
 
 				// Allocating the exact memory to the rows receiving
-				allocate_init_2Dmatrix(&a, num_rows, n);
+				allocate_nodes_2Dmatrix(&a, num_rows, n);
 				int status;
 
 				int lower_index = get_lower_index(myrank, num_rows);
