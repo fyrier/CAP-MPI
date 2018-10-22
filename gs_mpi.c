@@ -103,6 +103,19 @@ void allocate_nodes_2Dmatrix(float ***mat, int n, int m) {
 
 
 
+// Free all memory from the allocated 2D matrices
+void free_2Dmatrix(float ***mat, int n) {
+
+	int i;
+	for (int i = 0; i < n; i++) {
+    	float* current_ptr = mat[i];
+    	free(current_ptr);
+	}
+}
+
+
+
+
 // Solves as many rows as specified at the argument "n"
 void solver(float ***mat, int n, int m) {
 
@@ -205,19 +218,21 @@ int main(int argc, char *argv[]) {
 			break;
 		}
 
-		/*
 		case 1: {
 			if (myrank == 0) {
-				allocate_init_2Dmatrix(&a, n, n);
+				// Allocating memory for the whole matrix
+				allocate_init_2Dmatrix(&a, n, n);		
 			}
 			else {
-				allocate_init_2Dmatrix(&a, num_rows, n);
+				// Allocating the exact memory to the rows receiving
+				allocate_nodes_2Dmatrix(&a, num_rows, n);
 			}
 
-			// collective communication for scattering the matrix
+			// Collective communication for scattering the matrix
+			// Info: https://www.mpich.org/static/docs/v3.1/www3/MPI_Scatterv.html
+			MPI_Scatterv();
 			break;
 		}
-		*/
 	}
 
 
@@ -253,14 +268,25 @@ int main(int argc, char *argv[]) {
 
 			break;
 		}
-		/*
+		
 		case 1: {
-			// collective communication for gathering the matrix
+
+			// Collective communication for gathering the matrix
+			// Info: http://www.mpich.org/static/docs/v3.2.1/www/www3/MPI_Gatherv.html
+			MPI_Gatherv();
 			break;
 		}
-		*/
 	}
 
-	MPI_Finalize();
+
+	// Finally, free the 2D matrix memory allocated
+	if (myrank == 0) {
+		free_2Dmatrix(&a, n);	
+	}
+	else {
+		free_2Dmatrix(&a, num_rows);
+	}
+
+	MPI_Finalize();	
 	return 0;
 }
