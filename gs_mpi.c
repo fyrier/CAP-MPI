@@ -22,7 +22,7 @@ float rand_float(int max) {
 
 // Calculates how many rows are given, as maximum, to each node
 int get_max_rows(int num_nodes, int n) {
-	return ((int)floor(n/nodes) + 2);
+	return ((int) floor(n / num_nodes) + 2);
 }
 
 
@@ -48,7 +48,7 @@ int get_node_elems(int node_rows, int n) {
 // SUPPOSITION 1: STARTS WITH NODE 0
 // SUPPOSITION 2: THE RETURNED INDEX IS INCLUDED
 int get_lower_index(int node_id, int max_rows) {
-	return = node_id * (max_rows-2);
+	return node_id * (max_rows-2);
 }
 
 
@@ -187,7 +187,7 @@ int main(int argc, char *argv[]) {
 				for (i = 1; i < np; i++) {
 					int i_lower_index = get_lower_index(i, max_rows);
 					int i_upper_index = get_upper_index(i, max_rows, n);
-					int i_num_rows = get_node_rows(i_lower_index, i_upper_index)
+					int i_num_rows = get_node_rows(i_lower_index, i_upper_index);
 					int i_num_elems = get_node_elems(i_num_rows, n);
 
 					MPI_Send(&a[i_lower_index], i_num_elems, MPI_FLOAT, i, MPI_ANY_TAG, MPI_COMM_WORLD);
@@ -228,13 +228,13 @@ int main(int argc, char *argv[]) {
 	switch(communication) {
 		case 0: {
 			if (myrank == 0) {
-				int status;
+				int i, status;
 
 				// Master sends chuncks to every other node
 				for (i = 1; i < np; i++) {
 					int i_lower_index = get_lower_index(i, max_rows);
 					int i_upper_index = get_upper_index(i, max_rows, n);
-					int i_num_rows = get_node_rows(i_lower_index, i_upper_index)
+					int i_num_rows = get_node_rows(i_lower_index, i_upper_index);
 					int i_num_elems = get_node_elems(i_num_rows, n);
 
 					// Receiving the data from the slave nodes
