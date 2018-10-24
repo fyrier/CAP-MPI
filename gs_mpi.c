@@ -74,13 +74,12 @@ int get_upper_index(int node_id, int max_rows, int n) {
 // Allocate 2D matrix in the master node
 void allocate_init_2Dmatrix(float ***mat, int n, int m){
 
-	int i, j;
 	*mat = (float **) malloc(n * sizeof(float *));
 
-	for (i = 0; i < n; i++) {
+	for (int i = 0; i < n; i++) {
 		(*mat)[i] = (float *)malloc(m * sizeof(float));
 
-		for (j = 0; j < m; j++) {
+		for (int j = 0; j < m; j++) {
 			(*mat)[i][j] = rand_float(MAX);
 		}
 	}
@@ -92,10 +91,9 @@ void allocate_init_2Dmatrix(float ***mat, int n, int m){
 // Allocate 2D matrix in the slaves nodes
 void allocate_nodes_2Dmatrix(float ***mat, int n, int m) {
 
-	int i;
 	*mat = (float **) malloc(n * sizeof(float *));
 
-	for (i = 0; i < n; i++) {
+	for (int i = 0; i < n; i++) {
 		(*mat)[i] = (float *)malloc(m * sizeof(float));
 	}
 }
@@ -106,9 +104,8 @@ void allocate_nodes_2Dmatrix(float ***mat, int n, int m) {
 // Free all memory from the allocated 2D matrices
 void free_2Dmatrix(float ***mat, int n) {
 
-	int i;
 	for (int i = 0; i < n; i++) {
-    	float* current_ptr = mat[i];
+    	float* current_ptr = * mat[i];
     	free(current_ptr);
 	}
 }
@@ -154,7 +151,7 @@ void solver(float ***mat, int n, int m) {
 
 int main(int argc, char *argv[]) {
 
-	int np, myrank, n, communication;
+	int np, myrank, n, communication, i;
 	float **a;
 
 	MPI_Init(&argc, &argv);
@@ -194,7 +191,6 @@ int main(int argc, char *argv[]) {
 
 				// Allocating memory for the whole matrix
 				allocate_init_2Dmatrix(&a, n, n);
-				int i;
 
 				// Master sends chuncks to every other node
 				for (i = 1; i < np; i++) {
@@ -210,7 +206,7 @@ int main(int argc, char *argv[]) {
 
 				// Allocating the exact memory to the rows receiving
 				allocate_nodes_2Dmatrix(&a, num_rows, n);
-				int status;
+				MPI_Status status;
 
 				// Receiving the data from the master node
 				MPI_Recv(&a, num_elems, MPI_FLOAT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
@@ -243,7 +239,8 @@ int main(int argc, char *argv[]) {
 	switch(communication) {
 		case 0: {
 			if (myrank == 0) {
-				int i, status;
+
+				MPI_Status status;
 
 				// Master sends chuncks to every other node
 				for (i = 1; i < np; i++) {
