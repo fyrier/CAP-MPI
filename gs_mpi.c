@@ -72,49 +72,37 @@ int get_upper_index(int node_id, int max_rows, int n) {
 
 
 // Allocate 2D matrix in the master node
-void allocate_init_2Dmatrix(float ***mat, int n, int m){
+void allocate_init_2Dmatrix(float **mat, int n, int m){
 
-	*mat = (float **) malloc(n * sizeof(float *));
+	*mat = (float *) malloc(n * m * sizeof(float *));
 
-	for (int i = 0; i < n; i++) {
-		(*mat)[i] = (float *)malloc(m * sizeof(float));
-
-		for (int j = 0; j < m; j++) {
-			(*mat)[i][j] = rand_float(MAX);
-		}
-	}
 }
 
 
 
 
 // Allocate 2D matrix in the slaves nodes
-void allocate_nodes_2Dmatrix(float ***mat, int n, int m) {
+void allocate_nodes_2Dmatrix(float **mat, int n, int m) {
 
-	*mat = (float **) malloc(n * sizeof(float *));
+	*mat = (float *) malloc(n * m * sizeof(float *));
 
-	for (int i = 0; i < n; i++) {
-		(*mat)[i] = (float *)malloc(m * sizeof(float));
-	}
 }
 
 
 
 
 // Free all memory from the allocated 2D matrices
-void free_2Dmatrix(float ***mat, int n) {
+void free_2Dmatrix(float **mat, int n) {
+	
+	free(*mat);
 
-	for (int i = 0; i < n; i++) {
-    	float* current_ptr = * mat[i];
-    	free(current_ptr);
-	}
 }
 
 
 
 
 // Solves as many rows as specified at the argument "n"
-void solver(float ***mat, int n, int m) {
+void solver(float **mat, int n, int m) {
 
 	float diff = 0, temp;
 	int done = 0, cnt_iter = 0, i, j, myrank;
@@ -124,9 +112,9 @@ void solver(float ***mat, int n, int m) {
 
   		for (i = 1; i < n - 1; i++) {
   			for (j = 1; j < m - 1; j++) {
-  				temp = (*mat)[i][j];
-				(*mat)[i][j] = 0.2 * ((*mat)[i][j] + (*mat)[i][j - 1] + (*mat)[i - 1][j] + (*mat)[i][j + 1] + (*mat)[i + 1][j]);
-				diff += abs((*mat)[i][j] - temp);
+  				temp = (*mat)[i*m + j];
+				(*mat)[i*m + j] = 0.2 * ((*mat)[i*m + j] + (*mat)[i*m + (j - 1)] + (*mat)[(i - 1)*m + j] + (*mat)[i*m + (j + 1)] + (*mat)[(i + 1)*m + j]);
+				diff += abs((*mat)[i*m + j] - temp);
   			}
       	}
 
@@ -151,8 +139,8 @@ void solver(float ***mat, int n, int m) {
 
 int main(int argc, char *argv[]) {
 
-	int np, myrank, n, communication, i;
-	float **a;
+	int np, myrank, n, communication;
+	float *a;
 
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
@@ -184,13 +172,14 @@ int main(int argc, char *argv[]) {
 	int num_rows = get_node_rows(lower_index, upper_index);
 	int num_elems = get_node_elems(num_rows, n);
 
-
+	double tscom1 = MPI_Wtime();
 	switch(communication) {
 		case 0: {
 			if (myrank == 0) {
 
 				// Allocating memory for the whole matrix
 				allocate_init_2Dmatrix(&a, n, n);
+				int i;
 
 				// Master sends chuncks to every other node
 				for (i = 1; i < np; i++) {
@@ -199,7 +188,7 @@ int main(int argc, char *argv[]) {
 					int i_num_rows = get_node_rows(i_lower_index, i_upper_index);
 					int i_num_elems = get_node_elems(i_num_rows, n);
 
-					MPI_Send(&a[i_lower_index], i_num_elems, MPI_FLOAT, i, MPI_ANY_TAG, MPI_COMM_WORLD);
+					MPI_Send(&a[i_lower_index], i_num_elems, MPI_FLOAT, i, 0, MPI_COMM_WORLD);
 				}
 			}
 			else {
@@ -226,20 +215,22 @@ int main(int argc, char *argv[]) {
 
 			// Collective communication for scattering the matrix
 			// Info: https://www.mpich.org/static/docs/v3.1/www3/MPI_Scatterv.html
-			MPI_Scatterv();
+			//MPI_Scatterv();
 			break;
 		}
 	}
-
-
+	double tfcom1 = MPI_Wtime();
+	
+	double tsop = MPI_Wtime();
 	// --------- SOLVER ---------
 	solver(&a, num_rows, n);
+	double tfop = MPI_Wtime();
 
-
+	double tscom2 = MPI_Wtime();
 	switch(communication) {
 		case 0: {
 			if (myrank == 0) {
-
+				int i;
 				MPI_Status status;
 
 				// Master sends chuncks to every other node
@@ -260,7 +251,7 @@ int main(int argc, char *argv[]) {
 				int solved_elems = get_node_elems(solved_rows, n);
 
 				// Compute num_elems sin la corteza
-				MPI_Send(&a[solved_lower_index], solved_elems, MPI_FLOAT, 0, MPI_ANY_TAG, MPI_COMM_WORLD);
+				MPI_Send(&a[solved_lower_index], solved_elems, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
 			}
 
 			break;
@@ -270,11 +261,23 @@ int main(int argc, char *argv[]) {
 
 			// Collective communication for gathering the matrix
 			// Info: http://www.mpich.org/static/docs/v3.2.1/www/www3/MPI_Gatherv.html
-			MPI_Gatherv();
+			//MPI_Gatherv();
 			break;
 		}
 	}
+	
+	double tfcom2 = MPI_Wtime();
 
+	//FILE *fp;
+
+	//fp = fopen("./res.txt", "w+");
+	//char * result;
+	//sprintf(result, "%f;%f;%f\n",(tfcom1-tscom1 + tfcom2-tscom2), tfop - tsop, (tfcom1-tscom1 + tfcom2-tscom2 + tfop-tsop));
+	//fputs(result, fp);
+	//fclose(fp);
+
+	printf("Tiempo de comunicacion: %f \nTiempo de operacion: %f \nTiempo total: %f \n", 
+		(tfcom1-tscom1 + tfcom2-tscom2), tfop - tsop, (tfcom1-tscom1 + tfcom2-tscom2 + tfop-tsop));
 
 	// Finally, free the 2D matrix memory allocated
 	if (myrank == 0) {
