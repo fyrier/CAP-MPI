@@ -22,7 +22,7 @@ float rand_float(int max) {
 
 // Calculates how many rows are given, as maximum, to each node
 int get_max_rows(int num_nodes, int n) {
-	return ((int) floor(n / num_nodes) + 2);
+	return (int)(ceil((n-2) / num_nodes) + 2);
 }
 
 
@@ -37,11 +37,13 @@ int get_node_offset(int node_id, int n, int max_rows) {
 
 
 // Calculates how many elements are going to a given node
-int get_node_elems(int node_offset, int n, int max_rows) {
-	int node_elems = max_rows*n;
+int get_node_elems(int node_id, int n, int max_rows) {
+
+	int node_offset = get_node_offset(node_id, n, max_rows);
+	int node_elems = max_rows * n;
 
 	// Case in which the node receive the full set of elements
-	if (node_offset + node_elems < (n*n)) {
+	if (node_offset + node_elems <= (n*n)) {
 		return node_elems;
 	}
 
