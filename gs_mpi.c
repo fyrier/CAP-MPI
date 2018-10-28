@@ -38,16 +38,16 @@ int get_node_offset(int node_id, int n, int max_rows) {
 
 // Calculates how many elements are going to a given node
 int get_node_elems(int node_offset, int n, int max_rows) {
-	int node_elems = max_rows*n
+	int node_elems = max_rows*n;
 
 	// Case in which the node receive the full set of elements
 	if (node_offset + node_elems < (n*n)) {
-		return node_elems
+		return node_elems;
 	}
 
 	// Case of the last node, which could get less elements
 	else {
-		return (node_offset+node_elems) - (n*n)
+		return (n*n) - node_offset;
 	}
 }
 
@@ -57,9 +57,9 @@ int get_node_elems(int node_offset, int n, int max_rows) {
 // Allocate 2D matrix in the master node
 void allocate_root_matrix(float **mat, int n, int m){
 
-	*mat = (float *) malloc(n * m * sizeof(float));
+	*mat = malloc(n * m * sizeof(float));
 	for (int i = 0; i < (n*m); i++) {
-		mat[i] = rand_float(MAX);
+		(*mat)[i] = rand_float(MAX);
 	}
 }
 
@@ -68,22 +68,14 @@ void allocate_root_matrix(float **mat, int n, int m){
 
 // Allocate 2D matrix in the slaves nodes
 void allocate_node_matrix(float **mat, int num_elems) {
-	*mat = (float *) malloc(num_elems * sizeof(float));
-}
-
-
-
-
-// Free all memory from the allocated 2D matrices
-void free_matrix(float **mat, int n) {
-	free(*mat);
+	*mat = malloc(num_elems * sizeof(float));
 }
 
 
 
 
 // Solves as many elements as specified in "num_elems"
-void solver(float *mat, int n, int num_elems) {
+void solver(float **mat, int n, int num_elems) {
 
 	float diff = 0, temp;
 	int done = 0, cnt_iter = 0, myrank;
@@ -92,12 +84,12 @@ void solver(float *mat, int n, int num_elems) {
   		diff = 0;
 
   		// Neither the first row nor the last row are solved
-  		// (that's why it starts at "n" and it goes up to "num_elems - n")
-  		for (int i = n; i < num_elems - n; i++) {
+  		// (that's why it starts at "n" and it goes up to "num_elems - 2n")
+  		for (int i = n; i < num_elems - (2*n); i++) {
 
   			// Additionally, neither the first nor last column are solved
   			// (that's why the first and last positions of "rows" are skipped)
-  			if ((i % n == 0) or (i+1 % n == 0)) {
+  			if ((i % n == 0) || (i+1 % n == 0)) {
 				continue;
 			}
 
@@ -106,9 +98,9 @@ void solver(float *mat, int n, int num_elems) {
   			int pos_le = i - 1;
   			int pos_ri = i + 1;
 
-  			temp = mat[i];
-			mat[i] = 0.2 * (mat[i] + mat[pos_le] + mat[pos_up] + mat[pos_ri] + mat[pos_do]);
-			diff += abs(mat[i] - temp);
+  			temp = (*mat)[i];
+			(*mat)[i] = 0.2 * ((*mat)[i] + (*mat)[pos_le] + (*mat)[pos_up] + (*mat)[pos_ri] + (*mat)[pos_do]);
+			diff += abs((*mat)[i] - temp);
       	}
 
 		if (diff/n/n < TOL) {
@@ -162,12 +154,15 @@ int main(int argc, char *argv[]) {
 	int max_rows = get_max_rows(np, n);
 
 	// Array of containing the offset and number of elements per node
-	int[np] nodes_offsets;
-	int[np] nodes_elems;
+	int nodes_offsets[np];
+	int nodes_elems[np];
 	for (i = 0; i < np; i++) {
 		nodes_offsets[i] = get_node_offset(i, n, max_rows);
 		nodes_elems[i] = get_node_elems(i, n, max_rows);
 	}
+
+	// Variable to store the node local number of elements
+	int num_elems = nodes_elems[myrank];
 
 
 	double tscom1 = MPI_Wtime();
@@ -190,11 +185,11 @@ int main(int argc, char *argv[]) {
 			else {
 
 				// Allocating the exact memory to the rows receiving
-				allocate_node_matrix(&a, elems);
+				allocate_node_matrix(&a, num_elems);
 				MPI_Status status;
 
 				// Receiving the data from the master node
-				MPI_Recv(&a, nodes_elems[myrank], MPI_FLOAT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+				MPI_Recv(&a, num_elems, MPI_FLOAT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			}
 			break;
 		}
@@ -206,12 +201,12 @@ int main(int argc, char *argv[]) {
 			}
 			else {
 				// Allocating the exact memory to the rows receiving
-				allocate_node_matrix(&a, elems);
+				allocate_node_matrix(&a, num_elems);
 			}
 
 			// Collective communication for scattering the matrix
 			// Info: https://www.mpich.org/static/docs/v3.1/www3/MPI_Scatterv.html
-			MPI_Scatterv(&a, nodes_elems, nodes_offsets, MPI_FLOAT, nodes_elems[myrank], MPI_FLOAT, 0, MPI_COMM_WORLD);
+			MPI_Scatterv(&a, nodes_elems, nodes_offsets, MPI_FLOAT, &a, num_elems, MPI_FLOAT, 0, MPI_COMM_WORLD);
 			break;
 		}
 	}
@@ -221,7 +216,7 @@ int main(int argc, char *argv[]) {
 	double tsop = MPI_Wtime();
 
 	// --------- SOLVER ---------
-	solver(&a, num_rows, n);
+	solver(&a, n, num_elems);
 
 	double tfop = MPI_Wtime();
 	double tscom2 = MPI_Wtime();
@@ -235,8 +230,8 @@ int main(int argc, char *argv[]) {
 
 				// Master sends chuncks to every other node
 				for (i = 1; i < np; i++) {
-					int i_offset = node_offset[i] + n; 			// +n to skip cortex values
-					int i_elems = node_elems[i] - (2*n);		// -2n to skip cortex values
+					int i_offset = nodes_offsets[i] + n; 		// +n to skip cortex values
+					int i_elems = nodes_elems[i] - (2*n);		// -2n to skip cortex values
 					MPI_Recv(&a[i_offset], i_elems, MPI_FLOAT, i, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 				}
 			}
@@ -255,20 +250,20 @@ int main(int argc, char *argv[]) {
 
 			// Collective communication for gathering the matrix
 			// Info: http://www.mpich.org/static/docs/v3.2.1/www/www3/MPI_Gatherv.html
-			MPI_Gatherv(&a, nodes_elems[myrank], MPI_FLOAT, nodes_elems, nodes_offsets, MPI_FLOAT, 0, MPI_COMM_WORLD);
+			MPI_Gatherv(&a, num_elems, MPI_FLOAT, &a, nodes_elems, nodes_offsets, MPI_FLOAT, 0, MPI_COMM_WORLD);
 			break;
 		}
 	}
 
 	double tfcom2 = MPI_Wtime();
 
-	printf("Tiempo de comunicacion: %f", (tfcom1-tscom1) + (tfcom2-tscom2));
-	printf("Tiempo de operacion: %f", tfop - tsop);
-	printf("Tiempo total: %f", (tfcom1-tscom1) + (tfcom2-tscom2) + (tfop-tsop));
+	printf("Tiempo de comunicacion: %f\n", (tfcom1-tscom1) + (tfcom2-tscom2));
+	printf("Tiempo de operacion: %f\n", tfop - tsop);
+	printf("Tiempo total: %f\n", (tfcom1-tscom1) + (tfcom2-tscom2) + (tfop-tsop));
 
 
 	// Finally, free the flatten matrix memory allocated
-	free_matrix(&a);
+	free(a);
 	MPI_Finalize();
 	return 0;
 }
