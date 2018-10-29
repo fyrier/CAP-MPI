@@ -149,7 +149,10 @@ int main(int argc, char *argv[]) {
 
 	n = atoi(argv[1]);
 	communication =	atoi(argv[2]);
-	printf("Matrix size = %d communication = %d\n", n, communication);
+
+	if (myrank == 0) {
+		printf("Matrix size = %d communication = %d\n", n, communication);
+	}
 
 
 	// Calculate common relevant values for each node
@@ -191,7 +194,7 @@ int main(int argc, char *argv[]) {
 				MPI_Status status;
 
 				// Receiving the data from the master node
-				MPI_Recv(&a, num_elems, MPI_FLOAT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+				MPI_Recv(a, num_elems, MPI_FLOAT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			}
 			break;
 		}
@@ -208,7 +211,7 @@ int main(int argc, char *argv[]) {
 
 			// Collective communication for scattering the matrix
 			// Info: https://www.mpich.org/static/docs/v3.1/www3/MPI_Scatterv.html
-			MPI_Scatterv(&a, nodes_elems, nodes_offsets, MPI_FLOAT, &a, num_elems, MPI_FLOAT, 0, MPI_COMM_WORLD);
+			MPI_Scatterv(a, nodes_elems, nodes_offsets, MPI_FLOAT, &a, num_elems, MPI_FLOAT, 0, MPI_COMM_WORLD);
 			break;
 		}
 	}
@@ -239,7 +242,7 @@ int main(int argc, char *argv[]) {
 			}
 			else {
 				int solved_offset = n;							// Start at n to skip cortex values
-				int solved_elems = nodes_elems[i] - (2*n);		// Reach num_elems-2n to skip cortex values
+				int solved_elems = num_elems - (2*n);			// Reach num_elems-2n to skip cortex values
 
 				// Compute num_elems sin la corteza
 				MPI_Send(&a[solved_offset], solved_elems, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
@@ -252,7 +255,7 @@ int main(int argc, char *argv[]) {
 
 			// Collective communication for gathering the matrix
 			// Info: http://www.mpich.org/static/docs/v3.2.1/www/www3/MPI_Gatherv.html
-			MPI_Gatherv(&a, num_elems, MPI_FLOAT, &a, nodes_elems, nodes_offsets, MPI_FLOAT, 0, MPI_COMM_WORLD);
+			MPI_Gatherv(a, num_elems, MPI_FLOAT, &a, nodes_elems, nodes_offsets, MPI_FLOAT, 0, MPI_COMM_WORLD);
 			break;
 		}
 	}
