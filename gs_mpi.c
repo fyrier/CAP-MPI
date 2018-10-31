@@ -59,7 +59,7 @@ int get_node_elems(int node_id, int n, int max_rows) {
 // Allocate 2D matrix in the master node
 void allocate_root_matrix(float **mat, int n, int m){
 
-	*mat = malloc(n * m * sizeof(float));
+	*mat = (float *) malloc(n * m * sizeof(float));
 	for (int i = 0; i < (n*m); i++) {
 		(*mat)[i] = rand_float(MAX);
 	}
@@ -70,7 +70,7 @@ void allocate_root_matrix(float **mat, int n, int m){
 
 // Allocate 2D matrix in the slaves nodes
 void allocate_node_matrix(float **mat, int num_elems) {
-	*mat = malloc(num_elems * sizeof(float));
+	*mat = (float *) malloc(num_elems * sizeof(float));
 }
 
 
@@ -127,7 +127,7 @@ void solver(float **mat, int n, int num_elems) {
 int main(int argc, char *argv[]) {
 
 	int np, myrank, n, communication, i;
-	float *a;
+	float *a, *b;
 
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
@@ -204,14 +204,12 @@ int main(int argc, char *argv[]) {
 				// Allocating memory for the whole matrix
 				allocate_root_matrix(&a, n, n);		
 			}
-			else {
-				// Allocating the exact memory to the rows receiving
-				allocate_node_matrix(&a, num_elems);
-			}
+			// Allocating the exact memory where the receiving rows are computed
+			allocate_node_matrix(&b, num_elems);
 
 			// Collective communication for scattering the matrix
 			// Info: https://www.mpich.org/static/docs/v3.1/www3/MPI_Scatterv.html
-			MPI_Scatterv(a, nodes_elems, nodes_offsets, MPI_FLOAT, &a, num_elems, MPI_FLOAT, 0, MPI_COMM_WORLD);
+			MPI_Scatterv(a, nodes_elems, nodes_offsets, MPI_FLOAT, b, num_elems, MPI_FLOAT, 0, MPI_COMM_WORLD);
 			break;
 		}
 	}
@@ -221,7 +219,12 @@ int main(int argc, char *argv[]) {
 	double tsop = MPI_Wtime();
 
 	// --------- SOLVER ---------
-	solver(&a, n, num_elems);
+	if (communication == 0) {
+		solver(&a, n, num_elems);
+	}
+	else {
+		solver(&b, n, num_elems);
+	}
 
 	double tfop = MPI_Wtime();
 	double tscom2 = MPI_Wtime();
@@ -255,7 +258,7 @@ int main(int argc, char *argv[]) {
 
 			// Collective communication for gathering the matrix
 			// Info: http://www.mpich.org/static/docs/v3.2.1/www/www3/MPI_Gatherv.html
-			MPI_Gatherv(a, num_elems, MPI_FLOAT, &a, nodes_elems, nodes_offsets, MPI_FLOAT, 0, MPI_COMM_WORLD);
+			MPI_Gatherv(b, num_elems, MPI_FLOAT, a, nodes_elems, nodes_offsets, MPI_FLOAT, 0, MPI_COMM_WORLD);
 			break;
 		}
 	}
@@ -269,6 +272,7 @@ int main(int argc, char *argv[]) {
 
 	// Finally, free the flatten matrix memory allocated
 	free(a);
+	free(b);
 	MPI_Finalize();
 	return 0;
 }
