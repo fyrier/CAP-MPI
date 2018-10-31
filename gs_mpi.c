@@ -265,9 +265,17 @@ int main(int argc, char *argv[]) {
 
 	double tfcom2 = MPI_Wtime();
 
-	printf("Tiempo de comunicacion: %f\n", (tfcom1-tscom1) + (tfcom2-tscom2));
-	printf("Tiempo de operacion: %f\n", tfop - tsop);
-	printf("Tiempo total: %f\n", (tfcom1-tscom1) + (tfcom2-tscom2) + (tfop-tsop));
+	if (myrank == 0) {
+		FILE *f = fopen("testdata.csv", "a");
+
+		printf("Tiempo de comunicacion: %f\n", (tfcom1-tscom1) + (tfcom2-tscom2));
+		printf("Tiempo de operacion: %f\n", tfop - tsop);
+		printf("Tiempo total: %f\n", (tfcom1-tscom1) + (tfcom2-tscom2) + (tfop-tsop));
+		
+		fprintf(f, "Communication: %d; nodes: %d; size: %d;%f;%f;%f\n", 
+			communication, np, n, (tfcom1-tscom1) + (tfcom2-tscom2), tfop - tsop, (tfcom1-tscom1) + (tfcom2-tscom2) + (tfop-tsop));
+		fclose(f);
+	}
 
 
 	// Finally, free the flatten matrix memory allocated
