@@ -276,9 +276,13 @@ int main(int argc, char *argv[]) {
 		printf("Operations time: %f\n", ops_time);
 		printf("Total time: %f\n", total_time);
 
-		FILE *f = fopen("results.csv", "a");
+		FILE *f;
 		if (access("results.csv", F_OK) == -1) {
+ 			f = fopen("results.csv", "a");
 			fprintf(f, "Communication;Nodes;Size;Communication-time;Operations-time;Total-time;\n");
+		}
+		else {
+			f = fopen("results.csv", "a");
 		}
 
 		fprintf(f, "%d;%d;%d;%f;%f;%f;\n", communication, np, n, com_time, ops_time, total_time);
