@@ -38,7 +38,7 @@ do
                     echo "-------------------------------"
 
                     ppn=$num_processes/$num_nodes
-                    mpiexec -f machines.txt -np $num_nodes -ppn $ppn ./gs_mpi $size $exec_mode
+                    mpiexec -f machines_1x1.txt -np $num_nodes -ppn $ppn ./gs_mpi $size $exec_mode
                     num_exec=$(( num_exec+1 ))
                 done
             done
