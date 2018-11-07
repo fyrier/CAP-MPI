@@ -279,13 +279,13 @@ int main(int argc, char *argv[]) {
 		FILE *f;
 		if (access("results.csv", F_OK) == -1) {
  			f = fopen("results.csv", "a");
-			fprintf(f, "Communication;Nodes;Size;Communication-time;Operations-time;Total-time;\n");
+			fprintf(f, "Communication;Nodes;Processes;Size;Communication-time;Operations-time;Total-time;\n");
 		}
 		else {
 			f = fopen("results.csv", "a");
 		}
 
-		fprintf(f, "%d;%d;%d;%f;%f;%f;\n", communication, np, n, com_time, ops_time, total_time);
+		fprintf(f, "%d;%d;;%d;%f;%f;%f;\n", communication, np, n, com_time, ops_time, total_time);
 		fclose(f);
 	}
 
