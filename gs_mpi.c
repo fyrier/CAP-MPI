@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <math.h>
 #include "mpi.h"
 
@@ -265,22 +266,29 @@ int main(int argc, char *argv[]) {
 
 	double tfcom2 = MPI_Wtime();
 
-	if (myrank == 0) {
-		FILE *f = fopen("testdata.csv", "a");
 
-		printf("Tiempo de comunicacion: %f\n", (tfcom1-tscom1) + (tfcom2-tscom2));
-		printf("Tiempo de operacion: %f\n", tfop - tsop);
-		printf("Tiempo total: %f\n", (tfcom1-tscom1) + (tfcom2-tscom2) + (tfop-tsop));
-		
-		fprintf(f, "Communication: %d; nodes: %d; size: %d;%f;%f;%f\n", 
-			communication, np, n, (tfcom1-tscom1) + (tfcom2-tscom2), tfop - tsop, (tfcom1-tscom1) + (tfcom2-tscom2) + (tfop-tsop));
+	if (myrank == 0) {
+		float com_time = (tfcom1-tscom1) + (tfcom2-tscom2);
+		float ops_time = tfop - tsop;
+		float total_time = com_time + ops_time;
+
+		printf("Communication time: %f\n", com_time);
+		printf("Operations time: %f\n", ops_time);
+		printf("Total time: %f\n", total_time);
+
+		FILE *f = fopen("results.csv", "a");
+		if (access("results.csv", F_OK) == -1) {
+			fprintf(f, "Communication;Nodes;Size;Communication-time;Operations-time;Total-time;\n");
+		}
+
+		fprintf(f, "%d;%d;%d;%f;%f;%f;\n", communication, np, n, com_time, ops_time, total_time);
 		fclose(f);
 	}
 
 
-	// Finally, free the flatten matrix memory allocated
 	free(a);
 	free(b);
+
 	MPI_Finalize();
 	return 0;
 }
