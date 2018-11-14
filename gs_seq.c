@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <math.h>
+#include "mpi.h"
 
 #define MAX_ITER 100
 #define MAX 100 //maximum value of the matrix element
@@ -50,7 +53,8 @@ void solver(float ***mat, int n, int m){
 int main(int argc, char *argv[]) {
   int n, communication;
   float **a;
-
+  
+  MPI_Init(&argc, &argv);
 
   if (argc < 3) {
     printf("Call this program with two parameters: matrix_size communication \n");
@@ -68,8 +72,22 @@ int main(int argc, char *argv[]) {
 
   allocate_init_2Dmatrix(&a, n, n);
 
+  double tsop = MPI_Wtime();
   solver(&a, n, n);
+  double tfop = MPI_Wtime();
 
+  FILE *f;
+		if (access("seq.csv", F_OK) == -1) {
+ 			f = fopen("seq.csv", "a");
+			fprintf(f, "Operations-time\n");
+		}
+		else {
+			f = fopen("seq.csv", "a");
+		}
 
+		fprintf(f, "%f;\n", tfop - tsop);
+		fclose(f);
+
+  MPI_Finalize();
   return 0;
 }
